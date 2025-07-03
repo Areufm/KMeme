@@ -1,6 +1,6 @@
 <template>
 	<view class="image-container">
-		
+
 		<!-- ================== 页面顶部内容 ================== -->
 
 		<!-- 顶部状态栏：占位 -->
@@ -15,9 +15,9 @@
 		  @leftClick="goBack"
 		>
 		</up-navbar>
-		
+
 		<!-- ================== 页面主体内容：支持纵向滚动 ================== -->
-		
+
 		<scroll-view
 			class="content"
 			scroll-y
@@ -25,7 +25,7 @@
 			@scroll="handleScroll"
 			ref="contentRef"
 		>
-			
+
 			<!-- 统计信息栏 -->
 			<view class="stats-section">
 			    <view class="stats-card">
@@ -90,34 +90,34 @@
 				  <text>{{ showAllTags ? '→ 收起 ←' : '← 展开更多 →' }}</text>
 				</view>
 			</view>
-			
-			
+
+
 			<!-- 搜索结果标题 -->
 			<view class="section-title">
-			    <text class="title-text">搜索结果</text>
+			    <text class="title-text">我的收藏</text>
 			    <view class="title-line"></view>
 			</view>
-			
-			<!-- 搜索结果区域 -->
+
+			<!-- 收藏图片区域 -->
 			<view class="search-results-container">
-				<!-- 搜索结果不为空 -->
-				<template v-if="searchResults.length > 0">
+				<!-- 收藏图片不为空 -->
+				<template v-if="filteredList.length > 0">
 					<view class="album-list">
 						<view
-							v-for="(item, index) in searchResults"
-							:key="item.id"
+							v-for="(item, index) in filteredList"
+							:key="item.imgId"
 							class="album-item"
 							:style="{ animationDelay: index * 0.05 + 's' }"
 						>
 							<!-- 相册封面图 -->
 							<view class="album-image-container">
 								<!-- 图片预览 -->
-								<view @tap="previewImage(searchResults, index)">
+								<view @tap="previewImage(filteredList, index)">
 									<!-- 图片懒加载 -->
 									<up-lazy-load threshold="-450" border-radius="10" :image="item.imgUrl" :index="index"></up-lazy-load>
 									<!-- 图片悬浮图标 -->
 									<view class="album-overlay">
-										<up-icon name="eye" size="20" color="#fff"></up-icon>
+										<up-icon name="heart-fill" size="20" color="#ef4444"></up-icon>
 									</view>
 								</view>
 							</view>
@@ -130,49 +130,48 @@
 										<up-icon name="tag" size="12" color="#8b5cf6"></up-icon>
 										<text>{{ Array.isArray(item.tag) ? item.tag.join(', ') : item.tag }}</text>
 									</view>
-									<!-- 点赞数 -->
+									<!-- 收藏状态 -->
 									<view class="album-stats">
-										<up-icon name="thumb-up" size="12" color="#6b7280"></up-icon>
-										<text>{{ Math.floor(Math.random() * 100) + 10 }}</text>
+										<up-icon name="heart-fill" size="12" color="#ef4444"></up-icon>
+										<text>已收藏</text>
 									</view>
 								</view>
 							</view>
 						</view>
 					</view>
 				</template>
-				<!-- 搜索结果为空 -->
+				<!-- 收藏为空 -->
 				<template v-else>
 					<up-empty
-						mode="search"
-						icon="https://placehold.co/600x400/EEEEEE/999999/png?text=No+Results"
-						text="没有找到相关内容"
+						mode="list"
+						icon="https://placehold.co/600x400/EEEEEE/999999/png?text=No+Collection"
+						text="还没有收藏任何图片"
 					></up-empty>
 				</template>
 			</view>
 		</scroll-view>
-		
+
 		<!-- ================== 页面其他内容 ================== -->
-		
+
 		<!-- 置顶按钮，滚动超过阈值时显示 -->
 		<view v-if="showTopBtn" @click="toTop" class="topClass">
 			<up-icon name="arrow-upward" :color="topBtnIconColor" size="28"></up-icon>
 		</view>
-		
+
 	</view>
 </template>
 
 <script setup>
 /* ===================== 依赖导入 ===================== */
-import { ref, watch, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { searchImages } from '../../api/api.js';
+import { computed, ref, watch } from 'vue';
+import { collectList } from '../../api/api.js';
 
 /* ===================== 响应式数据定义 ===================== */
 // scroll-view 引用
 const contentRef = ref(null);
 // scroll-view 位置控制
 const scrollTop = ref(0);
-
 
 // 界面样式配置
 // 状态栏背景色
@@ -189,12 +188,12 @@ const iconColors = {
 
 // 搜索关键词
 const keyword = ref('');
-// 搜索结果列表
+// 搜索结果列表（现在是收藏列表）
 const searchResults = ref([]);
+// 当前筛选条件
+const currentFilter = ref('all');
 // 过滤标签展开
 const showAllTags = ref(false);
-// 用户ID
-const userId = ref('');
 
 // 是否显示置顶按钮（0不显示，1显示）
 const showTopBtn = ref(0);
@@ -204,8 +203,8 @@ const topBtnIconColor = "#ffffff";
 /* ===================== 生命周期 ===================== */
 // 页面加载时初始化数据
 onLoad((options) => {
-	// 请求搜索数据（模拟示例，实际应替换为 search 接口）
-	fetchImages('');
+	// 加载收藏数据
+	fetchCollectedImages();
 });
 
 /* ===================== 方法定义 ===================== */
@@ -229,7 +228,6 @@ const availableFilters = computed(() => {
     return Array.from(tags);
 });
 
-// 
 /**
  * 标签列表函数
  * 筛选后的列表
@@ -243,7 +241,13 @@ const filteredList = computed(() => {
   );
 });
 
-// 
+/**
+ * 设置筛选器
+ */
+const setFilter = (filter) => {
+	currentFilter.value = filter;
+};
+
 /**
  * 相册数量函数
  * 获取收藏的相册数量
@@ -256,7 +260,6 @@ const getCollectedAlbums = () => {
   return albums.size;
 };
 
-// 
 /**
  * 标签总数函数
  * 获取标签总数
@@ -284,18 +287,18 @@ const previewImage = (list, index) => {
 }
 
 /**
- * 搜索数据获取
+ * 加载收藏图片数据
  */
-const fetchImages = (kw) => {
+const fetchCollectedImages = () => {
     uni.showLoading({ title: '加载中...' });
-    searchImages(kw).then(res => {
+    collectList().then(res => {
         searchResults.value = res || [];
-        console.log('初始加载数据:', searchResults.value);
+        console.log('收藏图片数据:', searchResults.value);
     }).catch(err => {
-        console.error('初始图片加载失败:', err);
+        console.error('收藏图片加载失败:', err);
         uni.showToast({ title: '加载失败', icon: 'none' });
     }).finally(() => {
-        uni.hideLoading(); // 结束时隐藏加载框
+        uni.hideLoading();
     });
 };
 
@@ -310,27 +313,30 @@ watch(keyword, (val) => {
 let searchTimeout = null;
 /**
  * 处理搜索逻辑
- * - 关键词为空时清空搜索结果
- * - 调用后端接口搜索
- * - 显示加载状态和搜索结果数量提示
  */
 const handleSearch = () => {
 	if (searchTimeout) clearTimeout(searchTimeout);
-	
+
 	searchTimeout = setTimeout(() => {
 		const trimmedKeyword = keyword.value.trim();
 		if (!trimmedKeyword) {
-			// 不在这里调用 handleClear，避免干扰用户输入
-			// handleClear();
 			uni.showToast({ title: '请输入关键词', icon: 'none' });
 			return;
 		}
 
-		uni.showLoading({ title: '搜索中...' });
-		searchResults.value = [];
+		// 在已收藏的图片中搜索
+		const filtered = searchResults.value.filter(item => {
+			const inTitle = item.title.toLowerCase().includes(trimmedKeyword.toLowerCase());
+			const inTags = item.tag.some(t => t.toLowerCase().includes(trimmedKeyword.toLowerCase()));
+			return inTitle || inTags;
+		});
 
-		fetchImages(trimmedKeyword);
-	}, 300); // 300ms 防抖时间
+		// 创建临时结果显示
+		uni.showToast({
+			title: `找到${filtered.length}个结果`,
+			icon: filtered.length > 0 ? 'success' : 'none'
+		});
+	}, 300);
 };
 
 // 节流处理
@@ -341,10 +347,7 @@ let clearDebounceTimeout  = null;
 const handleClear = () => {
     if (clearDebounceTimeout ) clearTimeout(clearDebounceTimeout );
 	clearDebounceTimeout  = setTimeout(() => {
-		// 只清空结果，不重设 keyword（由 up-search 自己清空）
-		// keyword.value = ''; 
-		searchResults.value = [];
-		fetchImages('');
+		fetchCollectedImages(); // 重新加载收藏数据
 		uni.showToast({ title: '已清空搜索', icon: 'none' });
 		clearDebounceTimeout = null;
 	}, 200);
@@ -391,7 +394,7 @@ const goBack = () => {
 
 .content {
 	position: absolute;
-	top: 150rpx; 
+	top: 150rpx;
 	left: 0;
 	right: 0;
 	bottom: 0;
@@ -467,7 +470,7 @@ const goBack = () => {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 16rpx;
-		
+
 		&.collapsed {
 		    max-height: 60rpx; // 控制默认只显示一行
 		    overflow: hidden;
@@ -492,7 +495,7 @@ const goBack = () => {
 			}
 		}
 	}
-	
+
 	.toggle-btn {
 	  margin-top: 10rpx;
 	  font-size: 24rpx;
@@ -530,14 +533,14 @@ const goBack = () => {
 	flex: 1; // 填充剩余空间
 	padding: 10rpx;
 	overflow-y: auto; // 允许内容滚动
-	
+
 	// 相册列表样式 (与首页相册列表样式保持一致，或根据需要调整)
 	.album-list {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: space-between;
 		gap: 10rpx;
-		
+
 		// 相册卡片项
 		.album-item {
 			width: calc(50% - 10rpx);
@@ -549,17 +552,17 @@ const goBack = () => {
 			animation: fadeInUp 0.6s ease forwards;
 			opacity: 0;
 			transform: translateY(30rpx);
-		
+
 			&:active {
 				transform: scale(0.98) translateY(30rpx);
 			}
-			
+
 			// 图片容器
 			.album-image-container {
 				position: relative;
 				height: 240rpx;
 				overflow: hidden;
-			
+
 				.album-overlay {
 					position: absolute;
 					top: 0;
@@ -573,16 +576,16 @@ const goBack = () => {
 					opacity: 0;
 					transition: opacity 0.3s ease;
 				}
-			
+
 				&:hover .album-overlay {
 					opacity: 1;
 				}
 			}
-			
+
 			// 文本信息
 			.album-info {
 				padding: 24rpx;
-			
+
 				.album-title {
 					font-size: 28rpx;
 					font-weight: 600;
@@ -593,12 +596,12 @@ const goBack = () => {
 					text-overflow: ellipsis;
 					white-space: nowrap;
 				}
-			
+
 				.album-meta {
 					display: flex;
 					justify-content: space-between;
 					align-items: center;
-			
+
 					.album-tag {
 						display: flex;
 						align-items: center;
@@ -606,7 +609,7 @@ const goBack = () => {
 						font-size: 22rpx;
 						color: #8b5cf6;
 					}
-			
+
 					.album-stats {
 						display: flex;
 						align-items: center;
@@ -616,7 +619,7 @@ const goBack = () => {
 					}
 				}
 			}
-		}	
+		}
 	}
 }
 

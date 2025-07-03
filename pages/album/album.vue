@@ -1,8 +1,8 @@
 <template>
 	<view class="album-container">
-		
+
 		<!-- ================== 页面顶部内容 ================== -->
-		
+
 		<!-- 顶部状态栏：占位 -->
 		<up-status-bar></up-status-bar>
 		<!-- 顶部导航栏 -->
@@ -15,9 +15,9 @@
 		  @leftClick="goBack"
 		>
 		</up-navbar>
-		
+
 		<!-- ================== 页面主体内容：支持纵向滚动 ================== -->
-		
+
 		<scroll-view
 			class="content"
 			scroll-y
@@ -78,22 +78,22 @@
 				</up-waterfall>
 			</view>
 		</scroll-view>
-		
+
 		<!-- ================== 页面其他内容 ================== -->
-		
+
 		<!-- 置顶按钮，滚动超过阈值时显示 -->
 		<view v-if="showTopBtn" @click="toTop" class="topClass">
 			<up-icon name="arrow-upward" :color="topBtnIconColor" size="28"></up-icon>
 		</view>
-		
+
 	</view>
 </template>
 
 <script setup>
 /* ===================== 依赖导入 ===================== */
+import { deleteImage, getAlbumImages, sortImages, toggleCollect } from '@/api/api.js'
+import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
-import { onLoad, onPageScroll } from '@dcloudio/uni-app'
-import { getAlbumImages, deleteImage, toggleCollect, sortImages } from '@/api/api.js'
 
 /* ===================== 响应式数据定义 ===================== */
 // 相册Id数据
@@ -137,15 +137,21 @@ onLoad((options) => {
  */
 const loadData = async (albumId) => {
     // 请求后端该相册的图像数据
+    console.log('开始加载相册数据，albumId:', albumId)
     uni.showLoading({ title: '加载中' })
+
     getAlbumImages(albumId)
         .then(res => {
+            console.log('API返回的原始数据：', res)
+            console.log('数据类型：', typeof res, '是否为数组：', Array.isArray(res))
+
             flowList.value = res || []  // 已在接口内部处理了 .data
-            console.log('相册图片数据：', flowList.value)
+            console.log('设置到flowList的数据：', flowList.value)
+            console.log('flowList长度：', flowList.value.length)
         })
         .catch((err) => {
           console.error('Error loading album:', err)
-          uni.showToast({ 
+          uni.showToast({
             title: `加载失败: ${err.message || '未知错误'}`,
             icon: 'none',
             duration: 3000
@@ -217,7 +223,7 @@ const handleDelete = (itemId) => {
 
 /**
  * 图片排序函数（按标题）
- */ 
+ */
 const handleSort = async () => {
 	try {
 		const sorted = await sortImages('title')
@@ -264,7 +270,7 @@ const goBack = () => {
 
 .content {
 	position: absolute;
-	top: 150rpx; 
+	top: 150rpx;
 	left: 0;
 	right: 0;
 	bottom: 0;
@@ -289,7 +295,7 @@ const goBack = () => {
 			margin-top: 10rpx;
 			color: #303133;
 		}
-		
+
 		// 标签区域
 		.demo-tag {
 			display: flex;
@@ -332,7 +338,7 @@ const goBack = () => {
 				padding: 6rpx 16rpx;
 				border-radius: 20rpx;
 				box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
-				width: 150rpx; 
+				width: 150rpx;
 				text-align: center;
 				white-space: nowrap;
 			}

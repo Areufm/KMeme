@@ -1,8 +1,10 @@
-import pageApi from "./mockData/pageApi.js";
 import http from "./http.js";
+import pageApi from "./mockData/pageApi.js";
 
-// 小程序使用 mock 数据
-const isMock = process.env.NODE_ENV === "development" && process.env.UNI_PLATFORM == "h5";
+// 强制使用 mock 数据，忽略环境变量
+const isMock = true;
+
+console.log("强制Mock模式:", { isMock: true });
 
 /* -------------------- index页面 --------------------*/
 
@@ -30,16 +32,19 @@ export const getBanner = () => {
  * @returns {Promise<Array>} 首页列表数据。
  */
 export const getHomeList = () => {
-	// 从 userInfo 中获取 ID
+	if (isMock) {
+		// Mock环境下不需要登录验证，直接返回数据
+		return Promise.resolve(pageApi.getHomeList(1).data);
+	}
+
+	// 生产环境下才进行登录验证
 	const storedUserInfo = JSON.parse(uni.getStorageSync('userInfo') || '{}');
 	const userId = storedUserInfo.id;
 	if (!userId) {
 		console.error("getHomeList: userId 是必需参数！");
 		return Promise.reject(new Error("用户ID缺失，请先登录"));
 	}
-	if (isMock) {
-		return Promise.resolve(pageApi.getHomeList(userId).data);
-	}
+
 	return http({
 		url: "/user/${userId}/getHomeList",
 		method: "GET",
@@ -77,8 +82,10 @@ export const searchImages = (keyword) => {
  */
 export const getAlbumImages = (albumId) => {
   if (isMock) {
-    return Promise.resolve(pageApi.getAlbumImages(albumId).data);
+    const mockResult = pageApi.getAlbumImages(albumId);
+    return Promise.resolve(mockResult.data.albumData);
   }
+
   return http({
     url: "/album/images",
     method: "POST",
@@ -251,11 +258,7 @@ export const updateNotificationSettings = (settings) => {
  */
 export const collectList = () => {
   if (isMock) {
-    // 筛选已收藏的图片
-    const collected = pageApi
-      .searchImages("")
-      .data.filter((item) => item.isCollected === "已收藏");
-    return Promise.resolve(collected);
+    return Promise.resolve(pageApi.collectList());
   }
   return http({
     url: "/collect/list",
